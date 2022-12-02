@@ -40,7 +40,7 @@ class Player:
         album = self._client.albums_with_tracks(id_)
         volumes = album.volumes
         self._playlist = volumes[0]
-        return album
+        return volumes[0]
 
     def _get_playlist(self, link: str):
         playlist = self._client.playlists_list(link)

@@ -25,6 +25,7 @@ class DarkGarr:
         self._token = token
         self._player = player
         self._bot = commands.Bot(command_prefix=command_prefix, intents=intents)
+        self._statuses = dict()
         self.init_handlers()
 
     def init_handlers(self):
@@ -54,6 +55,45 @@ class DarkGarr:
                 if voice.is_playing():
                     voice.stop()
                 player = voice.play(source)
+            except ChannelNoVoiceError:
+                await ctx.reply(messages['discord']['no_voice_channel'])
+            except CommandSyntaxError:
+                await ctx.reply(messages['command']['invalid_command_use'])
+            except SearchNoFindError:
+                await ctx.reply(messages['player']['no_track'])
+            except:
+                await ctx.reply(messages['discord']['unknown'])
+                raise
+
+        @self._bot.command()
+        async def link(ctx: commands.Context, *args):
+            try:
+                if ctx.author.voice is None:
+                    raise ChannelNoVoiceError()
+                if len(args) == 0:
+                    raise CommandSyntaxError()
+                tracks = self._player.link_eater(args[0])
+                if ctx.voice_client and ctx.voice_client.channel == ctx.author.voice.channel:
+                    voice = ctx.voice_client
+                else:
+                    voice = await ctx.author.voice.channel.connect()
+                self._statuses.update({ctx.guild: {'break': False}})
+                for track in tracks:
+                    while voice.is_playing() or voice.is_paused():
+                        await asyncio.sleep(1)
+                    if self._statuses[ctx.guild]['break']:
+                        del self._statuses[ctx.guild]
+                        break
+                    self._player.download_track(track)
+                    source = FFmpegPCMAudio('music/track.mp3')
+                    await ctx.reply(messages['player']['track_template'].format(
+                        artists=' '.join([artist.name for artist in track.artists]),
+                        title=track.title,
+                        duration=f'{int(track.duration_ms / 60000)}:{int(track.duration_ms % 60000) // 1000}'
+                    ))
+                    if voice.is_playing():
+                        voice.stop()
+                    voice.play(source)
             except ChannelNoVoiceError:
                 await ctx.reply(messages['discord']['no_voice_channel'])
             except CommandSyntaxError:
@@ -111,14 +151,14 @@ class DarkGarr:
                 raise
 
         @self._bot.command()
-        async def stop(ctx: commands.Context):
+        async def skip(ctx: commands.Context):
             try:
                 if ctx.author.voice is None:
                     raise ChannelNoVoiceError()
                 voice = discord.utils.get(self._bot.voice_clients, guild=ctx.guild)
                 if voice is None:
                     raise AudioNoTrackError()
-                if voice.is_playing and not voice.is_paused():
+                if not voice.is_playing and not voice.is_paused():
                     raise AudioNoTrackError()
                 voice.stop()
             except ChannelNoVoiceError:
@@ -127,6 +167,30 @@ class DarkGarr:
                 await ctx.reply(messages['discord']['no_active'])
             except AudioAlreadyPlayError:
                 await ctx.reply(messages['discord']['already_play'])
+            except:
+                await ctx.reply(messages['discord']['unknown'])
+                raise
+
+        @self._bot.command()
+        async def stop(ctx: commands.Context):
+            try:
+                self._statuses.update({ctx.guild: {'break': True}})
+                if ctx.author.voice is None:
+                    raise ChannelNoVoiceError()
+                voice = discord.utils.get(self._bot.voice_clients, guild=ctx.guild)
+                if voice is None:
+                    raise AudioNoTrackError()
+                if voice.is_paused():
+                    raise AudioAlreadyPauseError()
+                if not voice.is_playing():
+                    raise AudioNoTrackError()
+                voice.stop()
+            except ChannelNoVoiceError:
+                await ctx.reply(messages['discord']['no_voice_channel'])
+            except AudioNoTrackError:
+                await ctx.reply(messages['discord']['no_active'])
+            except AudioAlreadyPauseError:
+                await ctx.reply(messages['discord']['already_pause'])
             except:
                 await ctx.reply(messages['discord']['unknown'])
                 raise
