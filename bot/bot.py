@@ -16,6 +16,28 @@ from player.errors import SearchNoFindError
 from player import Player
 
 
+def pretty_duration(duration) -> str:
+    result = ''
+    minutes = int(duration / 60000)
+    if minutes != 0:
+        if minutes < 10:
+            result += f'0{minutes}'
+        else:
+            result += f'{minutes}'
+    else:
+        result += '00'
+    result += ':'
+    seconds = int(duration % 60000) // 1000
+    if seconds != 0:
+        if seconds < 10:
+            result += f'0{seconds}'
+        else:
+            result += f'{seconds}'
+    else:
+        result += '00'
+    return result
+
+
 class DarkGarr:
     _bot: commands.Bot
     _token: str
@@ -40,8 +62,8 @@ class DarkGarr:
                     raise ChannelNoVoiceError()
                 if len(args) == 0:
                     raise CommandSyntaxError()
-                track = self._player.search_track(' '.join(args))[:10][0]
-                self._player.download_track(track)
+                track = (await self._player.search_track(' '.join(args)))[:10][0]
+                await self._player.download_track(track)
                 if ctx.voice_client and ctx.voice_client.channel == ctx.author.voice.channel:
                     voice = ctx.voice_client
                 else:
@@ -50,7 +72,7 @@ class DarkGarr:
                 await ctx.reply(messages['player']['track_template'].format(
                     artists=' '.join([artist.name for artist in track.artists]),
                     title=track.title,
-                    duration=f'{int(track.duration_ms / 60000)}:{int(track.duration_ms % 60000) // 1000}'
+                    duration=pretty_duration(track.duration_ms)
                 ))
                 if voice.is_playing():
                     voice.stop()
@@ -72,24 +94,24 @@ class DarkGarr:
                     raise ChannelNoVoiceError()
                 if len(args) == 0:
                     raise CommandSyntaxError()
-                tracks = self._player.link_eater(args[0])
+                await self._player.link_eater(args[0])
                 if ctx.voice_client and ctx.voice_client.channel == ctx.author.voice.channel:
                     voice = ctx.voice_client
                 else:
                     voice = await ctx.author.voice.channel.connect()
                 self._statuses.update({ctx.guild: {'break': False}})
-                for track in tracks:
+                for track in self._player.playlist:
                     while voice.is_playing() or voice.is_paused():
                         await asyncio.sleep(1)
                     if self._statuses[ctx.guild]['break']:
                         del self._statuses[ctx.guild]
                         break
-                    self._player.download_track(track)
+                    await self._player.download_track(track)
                     source = FFmpegPCMAudio('music/track.mp3')
                     await ctx.reply(messages['player']['track_template'].format(
                         artists=' '.join([artist.name for artist in track.artists]),
                         title=track.title,
-                        duration=f'{int(track.duration_ms / 60000)}:{int(track.duration_ms % 60000) // 1000}'
+                        duration=pretty_duration(track.duration_ms)
                     ))
                     if voice.is_playing():
                         voice.stop()
