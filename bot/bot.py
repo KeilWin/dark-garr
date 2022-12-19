@@ -112,7 +112,7 @@ class DarkGarr:
                         artists=' '.join([artist.name for artist in track.artists]),
                         title=track.title,
                         duration=pretty_duration(track.duration_ms)
-                    ))
+                    ), mention_author=False)
                     if voice.is_playing():
                         voice.stop()
                     voice.play(source)
