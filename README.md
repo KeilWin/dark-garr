@@ -1,1 +1,1 @@
-# Дискорд бот для яндекс музыки
+# Discord bot for YandexMusic
